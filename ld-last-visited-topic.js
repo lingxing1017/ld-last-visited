@@ -37,10 +37,53 @@
         box.style.width = '220px';
         box.style.borderRadius = '8px';
         box.innerHTML = `
-            <div class="ld-popup-label">上次浏览：</div>
+            <div class="ld-popup-label-flex">
+                <span>上次浏览：</span>
+                <span id="ld-locate-btn" class="ld-locate-icon-svg">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                    <circle cx="11" cy="11" r="7" stroke="#00bfff" stroke-width="2.5"/>
+                    <line x1="16" y1="16" x2="22" y2="22" stroke="#00bfff" stroke-width="2.5"/>
+                  </svg>
+                </span>
+            </div>
             <a href="${url}" target="_blank" class="ld-popup-link">${title}</a>
         `;
         document.body.appendChild(box);
+
+        document.getElementById('ld-locate-btn').onclick = () => locateAndHighlightTopic(lastTopicId);
+    }
+
+    function locateAndHighlightTopic(topicId) {
+        const tryFind = () => {
+            const rows = document.querySelectorAll('tr.topic-list-item');
+            for (const row of rows) {
+                const link = row.querySelector('a.raw-topic-link');
+                const match = link?.href.match(/\/t\/.*?\/(\d+)/);
+                if (match && match[1] === topicId) {
+                    row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    link.style.backgroundColor = '#ffff66';
+                    link.style.padding = '2px 4px';
+                    return true;
+                }
+            }
+            return false;
+        };
+
+        if (tryFind()) return;
+
+        let lastHeight = 0;
+        const interval = setInterval(() => {
+            window.scrollBy(0, 1000);
+            setTimeout(() => {
+                if (tryFind()) {
+                    clearInterval(interval);
+                } else if (document.documentElement.scrollHeight === lastHeight) {
+                    clearInterval(interval);
+                } else {
+                    lastHeight = document.documentElement.scrollHeight;
+                }
+            }, 500);
+        }, 1000);
     }
 
 
@@ -84,7 +127,10 @@
 
     const style = document.createElement('style');
     style.textContent = `
-        .ld-popup-label {
+        .ld-popup-label-flex {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
             margin-bottom: 6px;
             font-weight: bold;
             color: #666666;
@@ -98,6 +144,23 @@
             line-height: 1.3em;
             color: #336699;
             font-size: 14px;
+        }
+        .ld-locate-icon-svg {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            cursor: pointer;
+            margin-left: 6px;
+        }
+        .ld-locate-icon-svg:hover {
+            background-color: rgba(0, 191, 255, 0.25);
+            box-shadow: 0 0 4px rgba(0, 191, 255, 0.5);
+        }
+        .ld-locate-icon-svg svg {
+            pointer-events: none;
         }
     `;
     document.head.appendChild(style);
