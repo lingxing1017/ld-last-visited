@@ -1,5 +1,7 @@
 # ld-last-visited
 
+👉 [中文说明文档](./README.zh-CN.md)
+
 A Tampermonkey user script that displays a floating popup showing the last topic you viewed before the current page refresh on [linux.do](https://linux.do).
 
 ## Features
