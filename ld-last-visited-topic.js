@@ -8,6 +8,7 @@
 // @match        https://linux.do/latest?order=created
 // @grant        GM_getValue
 // @grant        GM_setValue
+// @grant        GM_deleteValue
 // @grant        GM_registerMenuCommand
 // @grant        GM_xmlhttpRequest
 // @run-at       document-idle
@@ -131,8 +132,8 @@
                         return;
                     }
                     if (json && json.last_post_id) {
-                        GM_setValue('last_post_id', json.last_post_id);
-                        GM_setValue('last_post_title', json.last_post_title || '');
+                        GM_setValue('last_downloaded_id', json.last_post_id);
+                        GM_setValue('last_downloaded_title', json.last_post_title || '');
                         showToast('下载成功', 'success');
                         if (refreshPopup) {
                             removeLastPostPopup();
@@ -159,10 +160,10 @@
 
     // --- Popup for last post before refresh ---
     function showLastPostPopup() {
-        const lastTopicId = GM_getValue('last_post_id');
+        const lastTopicId = GM_getValue('last_downloaded_id') || GM_getValue('last_post_id');
         if (!lastTopicId) return;
 
-        const title = GM_getValue('last_post_title') || `话题 ID：${lastTopicId}`;
+        const title = GM_getValue('last_downloaded_title') || GM_getValue('last_post_title') || `话题 ID：${lastTopicId}`;
         const url = `https://linux.do/t/${lastTopicId}`;
 
         removeLastPostPopup();
@@ -251,6 +252,9 @@
 
     // --- MutationObserver to detect when topics are loaded and show popup ---
     function waitForTopicsAndShowPopup() {
+        // Always clear download state immediately on page refresh
+        GM_deleteValue('last_downloaded_id');
+        GM_deleteValue('last_downloaded_title');
         // Always try to show popup immediately
         showLastPostPopup();
         // Helper to check if topics exist
@@ -265,6 +269,8 @@
             if (topicIdMatch) {
                 GM_setValue('last_post_id', topicIdMatch[1]);
                 GM_setValue('last_post_title', link?.textContent?.trim() || '');
+                GM_deleteValue('last_downloaded_id');
+                GM_deleteValue('last_downloaded_title');
             }
         }
         // If topics are already present, always set latest topic id
