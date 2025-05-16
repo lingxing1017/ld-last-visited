@@ -42,7 +42,10 @@
     }
 
     // --- WebDAV Credentials & Fixed File URL ---
-    const WEBDAV_FILE_URL = 'https://mori.teracloud.jp/dav/LinuxDo/ld-last-visited.json';
+    const DEFAULT_WEBDAV_FILE_URL = 'https://mori.teracloud.jp/dav/LinuxDo/ld-last-visited.json';
+    function getWebdavFileUrl() {
+        return GM_getValue('webdav_file_url', DEFAULT_WEBDAV_FILE_URL);
+    }
     function getWebdavCreds() {
         return {
             username: GM_getValue('webdav_username', ''),
@@ -63,6 +66,12 @@
         GM_setValue('webdav_password', password);
         showToast('WebDAV 密码已保存', 'success');
     });
+    GM_registerMenuCommand('设置 WebDAV 地址', async function() {
+        const fileUrl = prompt('输入 WebDAV 文件 URL', GM_getValue('webdav_file_url', DEFAULT_WEBDAV_FILE_URL));
+        if (fileUrl == null) return;
+        GM_setValue('webdav_file_url', fileUrl);
+        showToast('WebDAV 地址已保存', 'success');
+    });
     // --- Popup for last post before refresh ---
     // --- WebDAV Upload ---
     function uploadToWebDAV() {
@@ -76,7 +85,7 @@
         const data = JSON.stringify({ last_post_id, last_post_title });
         GM_xmlhttpRequest({
             method: "PUT",
-            url: WEBDAV_FILE_URL,
+            url: getWebdavFileUrl(),
             headers: {
                 "Content-Type": "application/json"
             },
@@ -106,7 +115,7 @@
         }
         GM_xmlhttpRequest({
             method: "GET",
-            url: WEBDAV_FILE_URL,
+            url: getWebdavFileUrl(),
             headers: { "Accept": "application/json" },
             anonymous: false,
             user: username,
