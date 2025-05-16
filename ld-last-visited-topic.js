@@ -9,12 +9,144 @@
 // @grant        GM_getValue
 // @grant        GM_setValue
 // @grant        GM_registerMenuCommand
+// @grant        GM_xmlhttpRequest
 // @run-at       document-idle
 // ==/UserScript==
 
 
 (function() {
     'use strict';
+
+    // --- Toast Notification ---
+    function showToast(msg, type = 'info') {
+        const toast = document.createElement('div');
+        toast.textContent = msg;
+        toast.style.position = 'fixed';
+        toast.style.left = '50%';
+        toast.style.top = '24px';
+        toast.style.transform = 'translateX(-50%)';
+        toast.style.background = type === 'error' ? '#f44336' : (type === 'success' ? '#4caf50' : '#333');
+        toast.style.color = '#fff';
+        toast.style.padding = '10px 18px';
+        toast.style.borderRadius = '6px';
+        toast.style.fontSize = '15px';
+        toast.style.zIndex = 99999;
+        toast.style.boxShadow = '0 2px 16px rgba(0,0,0,0.18)';
+        toast.style.opacity = '0.96';
+        document.body.appendChild(toast);
+        setTimeout(() => {
+            toast.style.transition = 'opacity 0.4s';
+            toast.style.opacity = '0';
+            setTimeout(() => toast.remove(), 400);
+        }, 1700);
+    }
+
+    // --- WebDAV Credentials & Fixed File URL ---
+    const WEBDAV_FILE_URL = 'https://mori.teracloud.jp/dav/LinuxDo/ld-last-visited.json';
+    function getWebdavCreds() {
+        return {
+            username: GM_getValue('webdav_username', ''),
+            password: GM_getValue('webdav_password', ''),
+        };
+    }
+
+    // --- Tampermonkey Menus to Set WebDAV Username/Password Separately ---
+    GM_registerMenuCommand('设置 WebDAV 用户名', async function() {
+        const username = prompt('输入 WebDAV 用户名', GM_getValue('webdav_username', ''));
+        if (username == null) return;
+        GM_setValue('webdav_username', username);
+        showToast('WebDAV 用户名已保存', 'success');
+    });
+    GM_registerMenuCommand('设置 WebDAV 密码', async function() {
+        const password = prompt('输入 WebDAV 密码', GM_getValue('webdav_password', ''));
+        if (password == null) return;
+        GM_setValue('webdav_password', password);
+        showToast('WebDAV 密码已保存', 'success');
+    });
+    // --- Popup for last post before refresh ---
+    // --- WebDAV Upload ---
+    function uploadToWebDAV() {
+        const { username, password } = getWebdavCreds();
+        if (!username || !password) {
+            showToast('请先在菜单中设置 WebDAV 用户名/密码', 'error');
+            return;
+        }
+        const last_post_id = GM_getValue('last_post_id', '');
+        const last_post_title = GM_getValue('last_post_title', '');
+        const data = JSON.stringify({ last_post_id, last_post_title });
+        GM_xmlhttpRequest({
+            method: "PUT",
+            url: WEBDAV_FILE_URL,
+            headers: {
+                "Content-Type": "application/json"
+            },
+            data: data,
+            anonymous: false,
+            user: username,
+            password: password,
+            onload: function(resp) {
+                if (resp.status >= 200 && resp.status < 300) {
+                    showToast('上传成功', 'success');
+                } else {
+                    showToast('上传失败: ' + resp.status, 'error');
+                }
+            },
+            onerror: function() {
+                showToast('上传出错', 'error');
+            }
+        });
+    }
+
+    // --- WebDAV Download ---
+    function downloadFromWebDAV(refreshPopup = true) {
+        const { username, password } = getWebdavCreds();
+        if (!username || !password) {
+            showToast('请先在菜单中设置 WebDAV 用户名/密码', 'error');
+            return;
+        }
+        GM_xmlhttpRequest({
+            method: "GET",
+            url: WEBDAV_FILE_URL,
+            headers: { "Accept": "application/json" },
+            anonymous: false,
+            user: username,
+            password: password,
+            responseType: "json",
+            onload: function(resp) {
+                if (resp.status >= 200 && resp.status < 300) {
+                    let json;
+                    try {
+                        json = resp.response || JSON.parse(resp.responseText);
+                    } catch (e) {
+                        showToast('下载内容解析失败', 'error');
+                        return;
+                    }
+                    if (json && json.last_post_id) {
+                        GM_setValue('last_post_id', json.last_post_id);
+                        GM_setValue('last_post_title', json.last_post_title || '');
+                        showToast('下载成功', 'success');
+                        if (refreshPopup) {
+                            removeLastPostPopup();
+                            showLastPostPopup();
+                        }
+                    } else {
+                        showToast('下载内容无效', 'error');
+                    }
+                } else {
+                    showToast('下载失败: ' + resp.status, 'error');
+                }
+            },
+            onerror: function() {
+                showToast('下载出错', 'error');
+            }
+        });
+    }
+
+    // --- Remove popup helper (for refresh) ---
+    function removeLastPostPopup() {
+        const popup = document.getElementById('ld-last-popup');
+        if (popup) popup.remove();
+    }
 
     // --- Popup for last post before refresh ---
     function showLastPostPopup() {
@@ -24,7 +156,10 @@
         const title = GM_getValue('last_post_title') || `话题 ID：${lastTopicId}`;
         const url = `https://linux.do/t/${lastTopicId}`;
 
+        removeLastPostPopup();
+
         const box = document.createElement('div');
+        box.id = 'ld-last-popup';
         box.style.position = 'fixed';
         box.style.top = '0';
         box.style.left = '0';
@@ -39,11 +174,27 @@
         box.innerHTML = `
             <div class="ld-popup-label-flex">
                 <span>上次浏览：</span>
-                <span id="ld-locate-btn" class="ld-locate-icon-svg">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                    <circle cx="11" cy="11" r="7" stroke="#00bfff" stroke-width="2.5"/>
-                    <line x1="16" y1="16" x2="22" y2="22" stroke="#00bfff" stroke-width="2.5"/>
-                  </svg>
+                <span style="display: flex; gap: 2px;">
+                  <span id="ld-upload-btn" class="ld-locate-icon-svg ld-circular-btn" title="上传">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                      <circle cx="12" cy="12" r="8" stroke="#00bfff" stroke-width="2.5"/>
+                      <path d="M12 7v7" stroke="#00bfff" stroke-width="2.5" stroke-linecap="round"/>
+                      <path d="M8.5 11.5L12 7l3.5 4.5" stroke="#00bfff" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+                    </svg>
+                  </span>
+                  <span id="ld-download-btn" class="ld-locate-icon-svg ld-circular-btn" title="下载">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                      <circle cx="12" cy="12" r="8" stroke="#00bfff" stroke-width="2.5"/>
+                      <path d="M12 17v-7" stroke="#00bfff" stroke-width="2.5" stroke-linecap="round"/>
+                      <path d="M8.5 12.5L12 17l3.5-4.5" stroke="#00bfff" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+                    </svg>
+                  </span>
+                  <span id="ld-locate-btn" class="ld-locate-icon-svg ld-circular-btn" title="定位">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                      <circle cx="11" cy="11" r="7" stroke="#00bfff" stroke-width="2.5"/>
+                      <line x1="16" y1="16" x2="22" y2="22" stroke="#00bfff" stroke-width="2.5"/>
+                    </svg>
+                  </span>
                 </span>
             </div>
             <a href="${url}" target="_blank" class="ld-popup-link">${title}</a>
@@ -51,6 +202,8 @@
         document.body.appendChild(box);
 
         document.getElementById('ld-locate-btn').onclick = () => locateAndHighlightTopic(lastTopicId);
+        document.getElementById('ld-upload-btn').onclick = () => uploadToWebDAV();
+        document.getElementById('ld-download-btn').onclick = () => downloadFromWebDAV(true);
     }
 
     function locateAndHighlightTopic(topicId) {
@@ -145,7 +298,7 @@
             color: #336699;
             font-size: 14px;
         }
-        .ld-locate-icon-svg {
+        .ld-circular-btn {
             display: inline-flex;
             align-items: center;
             justify-content: center;
@@ -153,13 +306,14 @@
             height: 30px;
             border-radius: 50%;
             cursor: pointer;
-            margin-left: 6px;
+            margin-left: 4px;
+            transition: background 0.14s, box-shadow 0.14s;
         }
-        .ld-locate-icon-svg:hover {
-            background-color: rgba(0, 191, 255, 0.25);
-            box-shadow: 0 0 4px rgba(0, 191, 255, 0.5);
+        .ld-circular-btn:hover {
+            background-color: rgba(0, 191, 255, 0.18);
+            box-shadow: 0 0 4px rgba(0, 191, 255, 0.4);
         }
-        .ld-locate-icon-svg svg {
+        .ld-circular-btn svg {
             pointer-events: none;
         }
     `;
