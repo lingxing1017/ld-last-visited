@@ -226,16 +226,14 @@
                     row.scrollIntoView({ behavior: 'smooth', block: 'center' });
                     link.style.backgroundColor = '#ffff66';
                     link.style.padding = '2px 4px';
+                    uploadToWebDAV();
                     return true;
                 }
             }
             return false;
         };
 
-        if (tryFind()) {
-            uploadToWebDAV();
-            return;
-        }
+        if (tryFind()) return;
 
         let lastHeight = 0;
         const interval = setInterval(() => {
