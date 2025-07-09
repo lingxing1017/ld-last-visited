@@ -232,7 +232,10 @@
             return false;
         };
 
-        if (tryFind()) return;
+        if (tryFind()) {
+            uploadToWebDAV();
+            return;
+        }
 
         let lastHeight = 0;
         const interval = setInterval(() => {
