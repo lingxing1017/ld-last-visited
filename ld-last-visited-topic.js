@@ -6,6 +6,10 @@
 // @author       Hygge
 // @match        https://linux.do/latest*
 // @match        https://linux.do/latest?order=created
+// @updateURL    https://raw.githubusercontent.com/lingxing1017/ld-last-visited/main/ld-last-visited-topic.js
+// @downloadURL  https://raw.githubusercontent.com/lingxing1017/ld-last-visited/main/ld-last-visited-topic.js
+// @supportURL   https://github.com/lingxing1017/ld-last-visited/issues
+// @homepageURL  https://github.com/lingxing1017/ld-last-visited
 // @grant        GM_getValue
 // @grant        GM_setValue
 // @grant        GM_deleteValue
