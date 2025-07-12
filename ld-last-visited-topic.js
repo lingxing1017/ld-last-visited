@@ -155,7 +155,85 @@
     // --- Remove popup helper (for refresh) ---
     function removeLastPostPopup() {
         const popup = document.getElementById('ld-last-popup');
-        if (popup) popup.remove();
+        if (popup) {
+            // 保存当前位置
+            const rect = popup.getBoundingClientRect();
+            GM_setValue('popup_position_x', rect.left);
+            GM_setValue('popup_position_y', rect.top);
+            popup.remove();
+        }
+    }
+
+    // --- Make element draggable ---
+    function makeDraggable(element, handle) {
+        let isDragging = false;
+        let currentX = 0;
+        let currentY = 0;
+        let initialX = 0;
+        let initialY = 0;
+        let xOffset = 0;
+        let yOffset = 0;
+
+        // 获取初始位置
+        const rect = element.getBoundingClientRect();
+        currentX = rect.left;
+        currentY = rect.top;
+        xOffset = currentX;
+        yOffset = currentY;
+
+        handle.addEventListener('mousedown', dragStart);
+        document.addEventListener('mousemove', dragMove);
+        document.addEventListener('mouseup', dragEnd);
+
+        function dragStart(e) {
+            // 如果点击的是按钮，不启动拖拽
+            if (e.target.closest('.ld-circular-btn')) {
+                return;
+            }
+            
+            initialX = e.clientX - xOffset;
+            initialY = e.clientY - yOffset;
+
+            if (e.target === handle || handle.contains(e.target)) {
+                isDragging = true;
+                handle.style.cursor = 'grabbing';
+            }
+        }
+
+        function dragMove(e) {
+            if (isDragging) {
+                e.preventDefault();
+                currentX = e.clientX - initialX;
+                currentY = e.clientY - initialY;
+                
+                // 限制拖拽范围在视窗内
+                const rect = element.getBoundingClientRect();
+                const maxX = window.innerWidth - rect.width;
+                const maxY = window.innerHeight - rect.height;
+                
+                currentX = Math.max(0, Math.min(currentX, maxX));
+                currentY = Math.max(0, Math.min(currentY, maxY));
+                
+                xOffset = currentX;
+                yOffset = currentY;
+                
+                element.style.left = currentX + 'px';
+                element.style.top = currentY + 'px';
+            }
+        }
+
+        function dragEnd(e) {
+            if (isDragging) {
+                initialX = currentX;
+                initialY = currentY;
+                isDragging = false;
+                handle.style.cursor = 'grab';
+                
+                // 保存拖拽后的位置
+                GM_setValue('popup_position_x', currentX);
+                GM_setValue('popup_position_y', currentY);
+            }
+        }
     }
 
     // --- Popup for last post before refresh ---
@@ -171,45 +249,67 @@
         const box = document.createElement('div');
         box.id = 'ld-last-popup';
         box.style.position = 'fixed';
-        box.style.top = '0';
-        box.style.left = '0';
+        
+        // 恢复保存的位置，如果没有则使用默认位置
+        let savedX = GM_getValue('popup_position_x', 0);
+        let savedY = GM_getValue('popup_position_y', 0);
+        
+        // 确保位置在当前视窗范围内
+        const popupWidth = 220; // 弹窗宽度
+        const popupHeight = 100; // 估计的弹窗高度
+        const maxX = window.innerWidth - popupWidth;
+        const maxY = window.innerHeight - popupHeight;
+        
+        savedX = Math.max(0, Math.min(savedX, maxX));
+        savedY = Math.max(0, Math.min(savedY, maxY));
+        
+        box.style.left = savedX + 'px';
+        box.style.top = savedY + 'px';
+        
         box.style.margin = '0';
         box.style.background = 'white';
         box.style.border = '1px solid #888';
-        box.style.padding = '10px';
+        box.style.padding = '0';
         box.style.boxShadow = '0 0 8px rgba(0,0,0,0.2)';
         box.style.zIndex = '9999';
         box.style.width = '220px';
         box.style.borderRadius = '8px';
         box.innerHTML = `
-            <div class="ld-popup-label-flex">
-                <span>上次浏览：</span>
-                <span style="display: flex; gap: 2px;">
-                  <span id="ld-upload-btn" class="ld-locate-icon-svg ld-circular-btn" title="上传">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                      <circle cx="12" cy="12" r="8" stroke="#00bfff" stroke-width="2.5"/>
-                      <path d="M12 7v7" stroke="#00bfff" stroke-width="2.5" stroke-linecap="round"/>
-                      <path d="M8.5 11.5L12 7l3.5 4.5" stroke="#00bfff" stroke-width="2.5" stroke-linecap="round" fill="none"/>
-                    </svg>
-                  </span>
-                  <span id="ld-download-btn" class="ld-locate-icon-svg ld-circular-btn" title="下载">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                      <circle cx="12" cy="12" r="8" stroke="#00bfff" stroke-width="2.5"/>
-                      <path d="M12 17v-7" stroke="#00bfff" stroke-width="2.5" stroke-linecap="round"/>
-                      <path d="M8.5 12.5L12 17l3.5-4.5" stroke="#00bfff" stroke-width="2.5" stroke-linecap="round" fill="none"/>
-                    </svg>
-                  </span>
-                  <span id="ld-locate-btn" class="ld-locate-icon-svg ld-circular-btn" title="定位">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                      <circle cx="11" cy="11" r="7" stroke="#00bfff" stroke-width="2.5"/>
-                      <line x1="16" y1="16" x2="22" y2="22" stroke="#00bfff" stroke-width="2.5"/>
-                    </svg>
-                  </span>
-                </span>
+            <div class="ld-popup-header" id="ld-popup-header">
+                <div class="ld-popup-label-flex">
+                    <span>上次浏览：</span>
+                    <span style="display: flex; gap: 2px;">
+                      <span id="ld-upload-btn" class="ld-locate-icon-svg ld-circular-btn" title="上传">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                          <circle cx="12" cy="12" r="8" stroke="#00bfff" stroke-width="2.5"/>
+                          <path d="M12 7v7" stroke="#00bfff" stroke-width="2.5" stroke-linecap="round"/>
+                          <path d="M8.5 11.5L12 7l3.5 4.5" stroke="#00bfff" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+                        </svg>
+                      </span>
+                      <span id="ld-download-btn" class="ld-locate-icon-svg ld-circular-btn" title="下载">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                          <circle cx="12" cy="12" r="8" stroke="#00bfff" stroke-width="2.5"/>
+                          <path d="M12 17v-7" stroke="#00bfff" stroke-width="2.5" stroke-linecap="round"/>
+                          <path d="M8.5 12.5L12 17l3.5-4.5" stroke="#00bfff" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+                        </svg>
+                      </span>
+                      <span id="ld-locate-btn" class="ld-locate-icon-svg ld-circular-btn" title="定位">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                          <circle cx="11" cy="11" r="7" stroke="#00bfff" stroke-width="2.5"/>
+                          <line x1="16" y1="16" x2="22" y2="22" stroke="#00bfff" stroke-width="2.5"/>
+                        </svg>
+                      </span>
+                    </span>
+                </div>
             </div>
-            <a href="${url}" target="_blank" class="ld-popup-link">${title}</a>
+            <div class="ld-popup-content">
+                <a href="${url}" target="_blank" class="ld-popup-link">${title}</a>
+            </div>
         `;
         document.body.appendChild(box);
+
+        // 添加拖拽功能
+        makeDraggable(box, document.getElementById('ld-popup-header'));
 
         document.getElementById('ld-locate-btn').onclick = () => locateAndHighlightTopic(lastTopicId);
         document.getElementById('ld-upload-btn').onclick = () => uploadToWebDAV();
@@ -296,11 +396,25 @@
 
     const style = document.createElement('style');
     style.textContent = `
+        .ld-popup-header {
+            cursor: grab;
+            user-select: none;
+            padding: 10px;
+            border-bottom: 1px solid #e0e0e0;
+            border-radius: 8px 8px 0 0;
+            background: linear-gradient(135deg, #f8f8f8 0%, #f0f0f0 100%);
+        }
+        .ld-popup-header:hover {
+            background: linear-gradient(135deg, #f0f0f0 0%, #e8e8e8 100%);
+        }
+        .ld-popup-content {
+            padding: 10px;
+        }
         .ld-popup-label-flex {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 6px;
+            margin-bottom: 0;
             font-weight: bold;
             color: #666666;
         }
