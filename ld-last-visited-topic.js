@@ -403,7 +403,8 @@
         .ld-popup-header {
             cursor: grab;
             user-select: none;
-            padding: 10px;
+            padding: 5px;
+            padding-left: 10px;
             border-bottom: 1px solid #e0e0e0;
             border-radius: 8px 8px 0 0;
             background: linear-gradient(135deg, #f8f8f8 0%, #f0f0f0 100%);
@@ -436,11 +437,11 @@
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            width: 30px;
-            height: 30px;
+            width: 25px;
+            height: 25px;
             border-radius: 50%;
             cursor: pointer;
-            margin-left: 4px;
+            margin-left: 2px;
             transition: background 0.14s, box-shadow 0.14s;
         }
         .ld-circular-btn:hover {
